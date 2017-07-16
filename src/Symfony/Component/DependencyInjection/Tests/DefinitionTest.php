@@ -216,7 +216,6 @@ class DefinitionTest extends TestCase
             "With \rs" => array("invalid \r message %service_id%"),
             "With \ns" => array("invalid \n message %service_id%"),
             'With */s' => array('invalid */ message %service_id%'),
-            'message not containing require %service_id% variable' => array('this is deprecated'),
         );
     }
 

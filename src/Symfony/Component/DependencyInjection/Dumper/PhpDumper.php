@@ -455,6 +455,10 @@ class PhpDumper extends Dumper
         foreach ($definition->getMethodCalls() as $call) {
             $arguments = array();
             foreach ($call[1] as $value) {
+                if ($value instanceof Definition && $this->inlinedDefinitions->contains($value) && $value->isDeprecated()) {
+                    $calls .= sprintf("        @trigger_error(%s, E_USER_DEPRECATED);\n\n", var_export($value->getDeprecationMessage(null), true));
+                }
+
                 $arguments[] = $this->dumpValue($value);
             }
 
@@ -468,6 +472,10 @@ class PhpDumper extends Dumper
     {
         $code = '';
         foreach ($definition->getProperties() as $name => $value) {
+            if ($value instanceof Definition && $this->inlinedDefinitions->contains($value) && $value->isDeprecated()) {
+                $code .= sprintf("        @trigger_error(%s, E_USER_DEPRECATED);\n\n", var_export($value->getDeprecationMessage(null), true));
+            }
+
             $code .= sprintf("        \$%s->%s = %s;\n", $variableName, $name, $this->dumpValue($value));
         }
 
@@ -781,9 +789,14 @@ EOF;
     private function addNewInstance($id, Definition $definition, $return, $instantiation)
     {
         $class = $this->dumpValue($definition->getClass());
+        $deprecations = '';
 
         $arguments = array();
         foreach ($definition->getArguments() as $value) {
+            if ($value instanceof Definition && $this->inlinedDefinitions->contains($value) && $value->isDeprecated()) {
+                $deprecations .= sprintf("        @trigger_error(%s, E_USER_DEPRECATED);\n\n", var_export($value->getDeprecationMessage(null), true));
+            }
+
             $arguments[] = $this->dumpValue($value);
         }
 
@@ -796,43 +809,43 @@ EOF;
 
                 if ($callable[0] instanceof Reference
                     || ($callable[0] instanceof Definition && $this->definitionVariables->contains($callable[0]))) {
-                    return sprintf("        $return{$instantiation}%s->%s(%s);\n", $this->dumpValue($callable[0]), $callable[1], $arguments ? implode(', ', $arguments) : '');
+                    return sprintf("$deprecations        $return{$instantiation}%s->%s(%s);\n", $this->dumpValue($callable[0]), $callable[1], $arguments ? implode(', ', $arguments) : '');
                 }
 
                 $class = $this->dumpValue($callable[0]);
                 // If the class is a string we can optimize call_user_func away
                 if (strpos($class, "'") === 0) {
-                    return sprintf("        $return{$instantiation}%s::%s(%s);\n", $this->dumpLiteralClass($class), $callable[1], $arguments ? implode(', ', $arguments) : '');
+                    return sprintf("$deprecations        $return{$instantiation}%s::%s(%s);\n", $this->dumpLiteralClass($class), $callable[1], $arguments ? implode(', ', $arguments) : '');
                 }
 
-                return sprintf("        $return{$instantiation}call_user_func(array(%s, '%s')%s);\n", $this->dumpValue($callable[0]), $callable[1], $arguments ? ', '.implode(', ', $arguments) : '');
+                return sprintf("$deprecations        $return{$instantiation}call_user_func(array(%s, '%s')%s);\n", $this->dumpValue($callable[0]), $callable[1], $arguments ? ', '.implode(', ', $arguments) : '');
             }
 
-            return sprintf("        $return{$instantiation}\\%s(%s);\n", $callable, $arguments ? implode(', ', $arguments) : '');
+            return sprintf("$deprecations        $return{$instantiation}\\%s(%s);\n", $callable, $arguments ? implode(', ', $arguments) : '');
         } elseif (null !== $definition->getFactoryMethod(false)) {
             if (null !== $definition->getFactoryClass(false)) {
                 $class = $this->dumpValue($definition->getFactoryClass(false));
 
                 // If the class is a string we can optimize call_user_func away
                 if (strpos($class, "'") === 0) {
-                    return sprintf("        $return{$instantiation}%s::%s(%s);\n", $this->dumpLiteralClass($class), $definition->getFactoryMethod(false), $arguments ? implode(', ', $arguments) : '');
+                    return sprintf("$deprecations        $return{$instantiation}%s::%s(%s);\n", $this->dumpLiteralClass($class), $definition->getFactoryMethod(false), $arguments ? implode(', ', $arguments) : '');
                 }
 
-                return sprintf("        $return{$instantiation}call_user_func(array(%s, '%s')%s);\n", $this->dumpValue($definition->getFactoryClass(false)), $definition->getFactoryMethod(false), $arguments ? ', '.implode(', ', $arguments) : '');
+                return sprintf("$deprecations        $return{$instantiation}call_user_func(array(%s, '%s')%s);\n", $this->dumpValue($definition->getFactoryClass(false)), $definition->getFactoryMethod(false), $arguments ? ', '.implode(', ', $arguments) : '');
             }
 
             if (null !== $definition->getFactoryService(false)) {
-                return sprintf("        $return{$instantiation}%s->%s(%s);\n", $this->getServiceCall($definition->getFactoryService(false)), $definition->getFactoryMethod(false), implode(', ', $arguments));
+                return sprintf("$deprecations        $return{$instantiation}%s->%s(%s);\n", $this->getServiceCall($definition->getFactoryService(false)), $definition->getFactoryMethod(false), implode(', ', $arguments));
             }
 
             throw new RuntimeException(sprintf('Factory method requires a factory service or factory class in service definition for %s', $id));
         }
 
         if (false !== strpos($class, '$')) {
-            return sprintf("        \$class = %s;\n\n        $return{$instantiation}new \$class(%s);\n", $class, implode(', ', $arguments));
+            return sprintf("        \$class = %s;\n\n$deprecations        $return{$instantiation}new \$class(%s);\n", $class, implode(', ', $arguments));
         }
 
-        return sprintf("        $return{$instantiation}new %s(%s);\n", $this->dumpLiteralClass($class), implode(', ', $arguments));
+        return sprintf("$deprecations        $return{$instantiation}new %s(%s);\n", $this->dumpLiteralClass($class), implode(', ', $arguments));
     }
 
     /**

@@ -891,6 +891,25 @@ class ContainerBuilderTest extends TestCase
 
         $this->assertEquals('a', (string) $container->getDefinition('b')->getArgument(0));
     }
+
+    /**
+     * @group legacy
+     * @expectedDeprecation The "foo" service is deprecated. You should stop using it, as it will soon be removed.
+     */
+    public function testPrivateServiceTriggersDeprecation()
+    {
+        $container = new ContainerBuilder();
+        $container->register('foo', 'stdClass')
+            ->setPublic(false)
+            ->setDeprecated(true);
+        $container->register('bar', 'stdClass')
+            ->setPublic(true)
+            ->setProperty('foo', new Reference('foo'));
+
+        $container->compile();
+
+        $container->get('bar');
+    }
 }
 
 class FooClass

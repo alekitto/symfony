@@ -766,10 +766,6 @@ class Definition
                 throw new InvalidArgumentException('Invalid characters found in deprecation template.');
             }
 
-            if (false === strpos($template, '%service_id%')) {
-                throw new InvalidArgumentException('The deprecation template must contain the "%service_id%" placeholder.');
-            }
-
             $this->deprecationTemplate = $template;
         }
 
